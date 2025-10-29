@@ -1,0 +1,42 @@
+theory HIDM_E6_privacy_2
+begin
+
+builtins: hashing
+functions: ho/0, PAI/3, token/1
+
+/* Optional: forbid audits during equivalence (pre-audit unlinkability).
+   Uncomment when running in --diff if you want to exclude any audit traces. */
+/*
+restriction NoAudit:
+  "not (Ex #t. Audit() @ t)"
+*/
+
+/* Two distinct patients with two distinct pseudonyms */
+rule Setup_TwoPatients:
+  [ Fr(~pid1), Fr(~pii1),
+    Fr(~pid2), Fr(~pii2),
+    Fr(~ps1),  Fr(~ps2) ]
+  -->
+  [ !MapAPI(~pid1, ~pii1),
+    !MapAPI(~pid2, ~pii2),
+    !MapPTA(~ps1, ~pid1),
+    !MapPTA(~ps2, ~pid2) ]
+
+/* Inter-person unlinkability (two-person activity):
+   Exactly one verification occurs; which patient/pseudonym is used
+   is hidden by diff(P1,P2): LHS uses P1, RHS uses P2.
+   Only an opaque PAI(...) blob is observable (no internals revealed). */
+rule Diff_Verify_Once:
+  [ !MapPTA(P1, PID1), !MapAPI(PID1, PII1),
+    !MapPTA(P2, PID2), !MapAPI(PID2, PII2),
+    Fr(~t), Fr(~rk), Fr(~ct) ]
+  --[ VerifyEv( diff(P1,P2), ho, token(~t) ) ]->
+  [ Out( PAI( diff(P1,P2), ~rk, ~ct ) ) ]
+
+/* Note:
+   - There is NO explicit equivalence lemma here.
+   - Run Tamarin with --diff; it auto-adds 'Observational_equivalence'.
+   - Proving that goal establishes inter-person unlinkability for E6.
+*/
+
+end
