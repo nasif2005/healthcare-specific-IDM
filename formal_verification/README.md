@@ -28,7 +28,7 @@ sudo apt-get install scyther
 # git clone https://github.com/cascremers/scyther.git
 # cd scyther && make
 
-### 2. Tamarin Prover
+### 2. Tamarin
 sudo apt-get update
 sudo apt-get install tamarin-prover maude graphviz
 # Verify correct Maude version (must be ≥ 3.2.1)
