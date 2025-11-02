@@ -1,0 +1,8 @@
+# Core language version
+python_version >= "3.9"
+
+# Cryptography and pairing-based primitives
+pycryptodome==3.15.0        # RSA, CL-RSA signatures, symmetric encryption
+bplib==0.1.5                # Bilinear pairings for CL-Bilinear and Proxy Re-Encryption
+petlib==0.0.45              # ECC, pairing utilities (optional helper library)
+cryptography==42.0.5        # General-purpose crypto operations (hashes, X.509, etc.)
