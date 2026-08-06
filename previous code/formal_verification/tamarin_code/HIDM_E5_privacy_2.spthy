@@ -1,0 +1,43 @@
+theory HIDM_E5_privacy_2
+begin
+
+builtins: hashing
+functions: ho/0, PAI/3
+
+/* Optional: forbid audits during equivalence (pre-audit unlinkability).
+   Uncomment when running in --diff. Comment it out otherwise. */
+/*
+restriction NoAudit:
+  "not (Ex #t. Audit() @ t)"
+*/
+
+/* One-shot setup: two distinct patients and two distinct pseudonyms. */
+rule Setup_TwoPatients:
+  [ Fr(~pid1), Fr(~pii1),
+    Fr(~pid2), Fr(~pii2),
+    Fr(~ps1),  Fr(~ps2) ]
+  -->
+  [ !MapAPI(~pid1, ~pii1),
+    !MapAPI(~pid2, ~pii2),
+    !MapPTA(~ps1, ~pid1),
+    !MapPTA(~ps2, ~pid2) ]
+
+/* Inter-person unlinkability (two-person activity).
+   Exactly one booking occurs; which patient/pseudonym is used is hidden
+   by diff(P1,P2):  LHS uses P1, RHS uses P2.
+   We only expose an opaque PAI(...) blob so internals can’t be correlated. */
+rule Diff_Book_Once:
+  [ !MapPTA(P1, PID1), !MapAPI(PID1, PII1),
+    !MapPTA(P2, PID2), !MapAPI(PID2, PII2),
+    Fr(~rk), Fr(~ct), Fr(~ati) ]
+  --[ BookEv(diff(P1,P2), ho, ~ati) ]->
+  [ Out( PAI(diff(P1,P2), ~rk, ~ct) ) ]
+
+/* Note:
+   - There is NO explicit equivalence lemma here by design.
+   - Run Tamarin with --diff; it auto-creates the goal 'Observational_equivalence'.
+   - Proving that goal gives you what you call
+     'unlinkability_two_persons_noaudit' (inter-person unlinkability).
+*/
+
+end

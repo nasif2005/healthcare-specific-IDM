@@ -1,0 +1,80 @@
+theory HIDM_E6_privacy_1
+begin
+
+builtins: hashing
+functions: ho/0, link/2, PAI/3, token/1
+
+/* -------------------------------
+   Public name for the organization
+---------------------------------- */
+rule InitHO:
+  [ ]
+  -->
+  [ Out(ho) ]
+
+/* ---------------------------------------
+   APC/PTA split plus pseudonym generation
+------------------------------------------ */
+
+/* Create a patient with secret identifiers at APC. */
+rule CreatePatient:
+  [ Fr(~pid), Fr(~pii) ]
+  -->
+  [ !MapAPI(~pid, ~pii) ]
+
+/* PTA: mint a fresh unlinkable pseudonym for that patient. */
+rule PTA_Mint_Pseudonym:
+  [ !MapAPI(PID, PII), Fr(~ps) ]
+  -->
+  [ !MapPTA(~ps, PID) ]
+
+/* ---------------------------------------
+   Episode 6 — Verification/Check-in at HO
+   Patient presents a token; only an opaque PAI is exposed.
+------------------------------------------ */
+rule Present_Proof_At_HO:
+  [ !MapPTA(P, PID), !MapAPI(PID, PII), Fr(~t), Fr(~rk), Fr(~ct) ]
+  --[ VerifyEv(P, ho, token(~t)) ]->
+  [ !SeenV(P),
+    Out( PAI(P, ~rk, ~ct) ) ]
+
+/* ---------------------------------------
+   Conditional traceability (separation)
+   Link PII <-> P only under Audit and only for seen pseudonyms.
+------------------------------------------ */
+rule Audit_Expose_Link_E6:
+  [ !SeenV(P), !MapPTA(P, PID), !MapAPI(PID, PII) ]
+  --[ Audit(), LinkCreated(PII, P) ]->
+  [ Out( link(PII, P) ) ]
+
+/* -----------------
+   Privacy lemmas (trace style for E6)
+------------------ */
+
+/* a) Pseudonymity / privacy by default for verification */
+lemma no_link_without_audit_E6:
+"All P T #i.
+     VerifyEv(P, ho, T) @ i
+  &  not (Ex #j. Audit() @ j)
+ ==> not (Ex PII #k. K(link(PII, P)) @ k)"
+
+/* b) Intra-person unlinkability (safety-style):
+      multiple verifications can't be linked without audit */
+lemma no_multi_verify_links_without_audit_E6:
+"All P1 P2 T1 T2 #i #j.
+     VerifyEv(P1, ho, T1) @ i
+  &  VerifyEv(P2, ho, T2) @ j
+  &  not (Ex #t. Audit() @ t)
+ ==> not (Ex PII1 PII2 #k1 #k2.
+            K(link(PII1, P1)) @ k1
+         &  K(link(PII2, P2)) @ k2)"
+
+/* c) Conditional traceability (existence) */
+lemma traceability_under_audit_possible_E6: exists-trace
+"Ex P PII T #i #j #k.
+     VerifyEv(P, ho, T) @ i
+  &  Audit() @ j
+  &  LinkCreated(PII, P) @ j
+  &  K(link(PII, P)) @ k"
+
+end

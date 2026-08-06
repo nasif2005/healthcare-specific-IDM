@@ -1,0 +1,6 @@
+cd /home/nmuslim162022/scythe
+
+./src/scyther-linux --max-runs 2 /home/nmuslim162022/Desktop/store/hidm_appbooking.spdl
+
+./src/scyther-linux --max-runs 2 /home/nmuslim162022/Desktop/store/hidm_verification.spdl
+

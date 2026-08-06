@@ -1,0 +1,94 @@
+// File: hidm_verification.spdl
+// Episode 6 — In-person verification (Patient ↔ HO)
+//  • HO sends fresh challenge Chall
+//  • Patient returns Payload + SigP bound to Chall
+//  • HO validates PT via PTA sig and SigP
+//  • HO sends confirmation bound to ATI
+//  • Confidential channel { … }k(Patient,HO)
+//  • Claims: Secret(VerifNonce), Nisynch, Commit/Running on (ATI,ACC)
+
+hashfunction h;
+const Ok;
+
+protocol HIDMVerify(Patient,HO,PTA)
+{
+  // ---------------------- HO (challenge, verify, confirm) ----------------------
+  role HO
+  {
+    fresh Chall;
+    send_1(HO, Patient, { Chall }k(Patient,HO));
+
+    var PTTag, PTExp;
+    var SigPTA;
+    var ATI, ACC;
+    var BioHash;
+    var VerifNonce;
+
+    var Payload;
+    var SigP;
+
+    // Receive Patient's response
+    recv_2(Patient, HO, { ( Payload, SigP ) }k(Patient,HO) );
+
+    // Payload = ( (PTTag,PTExp), SigPTA, ATI, ACC, BioHash, VerifNonce )
+    match( ( (PTTag, PTExp), SigPTA, ATI, ACC, BioHash, VerifNonce ), Payload );
+
+    // PT validation: signature by PTA over (PTTag,PTExp)
+    match( { (PTTag, PTExp) }sk(PTA), SigPTA );
+
+    // Possession of pseudonym key + freshness via challenge binding
+    match( { h( (Payload, Chall) ) }sk(Patient), SigP );
+
+    // Running claim BEFORE sending confirmation (so Patient can match it)
+    claim(HO, Running, Patient, (ATI,ACC));
+
+    // Send confirmation bound to ATI (and a fresh ack)
+    fresh Ack;
+    send_3(HO, Patient, { ( Ok, ATI, Ack ) }k(Patient,HO) );
+
+    // Synchronisation property on HO side
+    claim(HO, Nisynch);
+  }
+
+  // ---------------------- Patient (selective disclosure) ----------------------
+  role Patient
+  {
+    var Chall;
+
+    // Fresh values
+    fresh PTTag, PTExp;
+    fresh ATI, ACC;
+    fresh BioHash;
+    fresh VerifNonce;
+
+    // Step 1: receive challenge
+    recv_1(HO, Patient, { Chall }k(Patient,HO) );
+
+    // Step 2: send payload + bound signature
+    send_2(Patient, HO,
+      { ( ( (PTTag, PTExp),
+            { (PTTag, PTExp) }sk(PTA),
+            ATI, ACC, BioHash, VerifNonce ),
+          { h( ( ( (PTTag, PTExp),
+                   { (PTTag, PTExp) }sk(PTA),
+                   ATI, ACC, BioHash, VerifNonce ), Chall ) ) }sk(Patient)
+        ) }k(Patient,HO)
+    );
+
+    // Step 3: receive confirmation (proves HO actually ran)
+    var Ack;
+    recv_3(HO, Patient, { ( Ok, ATI, Ack ) }k(Patient,HO) );
+
+    // Claims
+    claim(Patient, Secret, VerifNonce);    // confidentiality of the payload on the wire
+    claim(Patient, Nisynch);               // resists MITM/replay via challenge binding
+    claim(Patient, Commit, HO, (ATI,ACC)); // now AFTER recv_3 → matches HO's Running
+  }
+
+  // ---------------------- PTA (keys only; empty role is fine) -----------------
+  role PTA
+  {
+    // empty role; warning is harmless
+  }
+}
+

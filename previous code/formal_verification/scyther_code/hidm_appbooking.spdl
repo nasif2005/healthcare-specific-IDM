@@ -1,0 +1,76 @@
+// File: hidm_appbooking.spdl
+// Episode 5 — Appointment booking (Patient ↔ HO) with:
+//   • Pseudonym signature by Patient over h(M)
+//   • Appointment Token signed by APC: { (ATI,exp) }sk(APC)
+//   • Confidential channel modelled as { … }k(Patient,HO)
+// Arachne-friendly: no typed vars, Secret on a single atom, fixed peers in events.
+
+hashfunction h;
+const Ok;
+
+protocol HIDMAppBooking(Patient,HO,APC)
+{
+  // ======================== Patient role ==========================
+  role Patient
+  {
+    fresh ATI, exp, SInfo;   // appointment id, expiry, schedule
+    fresh rk, ctPID;         // re-encryption stub & encrypted PatientID
+    fresh PayNonce;          // secrecy witness (single atom)
+    var acknonce;
+
+    // message layout comments same as before
+
+    send_1(Patient, HO,
+      { (
+          ( ( pk(Patient), rk, ctPID ),
+            ( (ATI, exp), { (ATI, exp) }sk(APC) ),
+            SInfo,
+            PayNonce ),
+          { h( ( ( pk(Patient), rk, ctPID ),
+                 ( (ATI, exp), { (ATI, exp) }sk(APC) ),
+                 SInfo,
+                 PayNonce ) ) }sk(Patient)
+        ) }k(Patient,HO)
+    );
+
+    recv_2(HO, Patient, { ( Ok, ATI, acknonce ) }k(Patient,HO) );
+
+    claim(Patient, Secret, PayNonce);
+    claim(Patient, Nisynch);
+    claim(Patient, Commit, HO, (ATI,SInfo));
+  }
+
+  // ==================== Health Organization role =================
+  role HO
+  {
+    var rk, ctPID;
+    var ATI, exp, SInfo;
+    var PayNonce;
+
+    var M;
+    var SigPatient;  // no underscore
+    var SigAPC;      // no underscore
+
+    recv_1(Patient, HO, { ( M, SigPatient ) }k(Patient,HO) );
+
+    match( ( ( pk(Patient), rk, ctPID ),
+            ( (ATI, exp), SigAPC ),
+            SInfo,
+            PayNonce ), M );
+    match( { h(M) }sk(Patient), SigPatient );
+    match( { (ATI, exp) }sk(APC), SigAPC );
+
+    fresh acknonce;
+    claim(HO, Running, Patient, (ATI,SInfo));
+    send_2(HO, Patient, { ( Ok, ATI, acknonce ) }k(Patient,HO) );
+
+    claim(HO, Nisynch);
+  }
+
+  // ============================ APC role ==========================
+  role APC
+  {
+    // presence only; empty role is fine
+  }
+}
+

@@ -1,0 +1,91 @@
+theory HIDM_E5_privacy
+begin
+
+builtins: hashing
+functions: ho/0, link/2, PAI/3
+
+/* -------------------------------
+   Public name for the organization
+---------------------------------- */
+rule InitHO:
+  [ ]
+  -->
+  [ Out(ho) ]
+
+/* ---------------------------------------
+   APC/PTA split plus pseudonym generation
+------------------------------------------ */
+
+/* Create a patient with secret identifiers at APC. */
+rule CreatePatient:
+  [ Fr(~pid), Fr(~pii) ]
+  -->
+  [ !MapAPI(~pid, ~pii) ]
+
+/* PTA: mint a fresh unlinkable pseudonym for that patient.
+   (Multiple pseudonyms per patient are possible by re-firing.) */
+rule PTA_Mint_Pseudonym:
+  [ !MapAPI(PID, PII), Fr(~ps) ]
+  -->
+  [ !MapPTA(~ps, PID) ]
+
+/* ---------------------------------------
+   Episode 5 — Appointment booking
+------------------------------------------ */
+
+/* Patient books with HO using a PTA-issued pseudonym and a fresh ATI.
+   We also emit an opaque PAI blob alongside the observable “booking”.
+   A local persistent Seen(P) fact lets audit later target that pseudonym. */
+rule Book_Appointment:
+  [ !MapPTA(P, PID), !MapAPI(PID, PII), Fr(~ati), Fr(~rk), Fr(~ct) ]
+  --[ BookEv(P, ho, ~ati) ]->
+  [ !Seen(P),
+    Out( PAI(P, ~rk, ~ct) ) ]
+
+/* ---------------------------------------
+   Conditional traceability (separation)
+------------------------------------------ */
+
+/* Only if (i) the booked pseudonym was seen, (ii) PTA mapping P→PID exists,
+   and (iii) APC mapping PID→PII exists, we emit the link on audit. */
+rule Audit_Expose_Link:
+  [ !Seen(P), !MapPTA(P, PID), !MapAPI(PID, PII) ]
+  --[ Audit(), LinkCreated(PII, P) ]->
+  [ Out(link(PII, P)) ]
+
+/* -----------------
+   Privacy lemmas
+------------------ */
+
+/* Privacy by default for the booked pseudonym:
+   If there is a booking and NO audit anywhere on the trace,
+   then the adversary does not learn link(PII,P) for that booked P. */
+lemma no_link_without_audit:
+"All P Aux #i.
+     BookEv(P, ho, Aux) @ i
+  &  not (Ex #j. Audit() @ j)
+ ==> not (Ex PII #k. K(link(PII, P)) @ k)"
+
+/* Stronger multi-booking privacy (safety-style stand-in for unlinkability):
+   If there are (possibly many) bookings and NO audit, the attacker cannot
+   simultaneously learn *any* links for those booked pseudonyms. */
+lemma no_multi_booking_links_without_audit:
+"All P1 P2 A1 A2 #i #j.
+     BookEv(P1, ho, A1) @ i
+  &  BookEv(P2, ho, A2) @ j
+  &  not (Ex #t. Audit() @ t)
+ ==> not (Ex PII1 PII2 #k1 #k2.
+            K(link(PII1, P1)) @ k1
+         &  K(link(PII2, P2)) @ k2)"
+
+/* Conditional traceability (witness existence):
+   There exists a trace with a booking and an audit where the link becomes known. */
+lemma traceability_under_audit_possible: exists-trace
+"Ex P PII Aux #i #j #k.
+     BookEv(P, ho, Aux) @ i
+  &  Audit() @ j
+  &  LinkCreated(PII, P) @ j
+  &  K(link(PII, P)) @ k"
+
+
+end
