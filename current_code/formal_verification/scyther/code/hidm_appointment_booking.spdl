@@ -1,0 +1,55 @@
+hashfunction h;
+const Ok, APC;
+
+/*
+ * E5 appointment booking.
+ * The APC-issued token is modeled as a trusted pre-existing input.
+ * Token issuance, expiry, and one-time redemption are outside this model.
+ */
+protocol HIDMAppointmentBooking(Patient, HO)
+{
+  role Patient
+  {
+    var ATI, Exp;
+    fresh ScheduleInfo, PAI, BookingSecret;
+    var Ack;
+
+    recv_!0(APC, Patient,
+      { (ATI, Exp, { (ATI, Exp) }sk(APC)) }k(APC, Patient)
+    );
+
+    send_1(Patient, HO,
+      { ( (PAI, (ATI, Exp, { (ATI, Exp) }sk(APC)),
+            ScheduleInfo, BookingSecret),
+          { h((PAI, (ATI, Exp, { (ATI, Exp) }sk(APC)),
+               ScheduleInfo, BookingSecret)) }sk(Patient)
+        ) }k(Patient, HO)
+    );
+
+    recv_2(HO, Patient, { (Ok, ATI, Ack) }k(Patient, HO));
+
+    claim_E5Secret(Patient, Secret, BookingSecret);
+    claim_E5PatientSync(Patient, Nisynch);
+    claim_E5PatientCommit(Patient, Commit, HO, (ATI, ScheduleInfo, PAI));
+  }
+
+  role HO
+  {
+    var PAI, ATI, Exp, ScheduleInfo, BookingSecret;
+    var Request, SigPatient;
+    fresh Ack;
+
+    recv_1(Patient, HO, { (Request, SigPatient) }k(Patient, HO));
+
+    match((PAI, (ATI, Exp, { (ATI, Exp) }sk(APC)),
+           ScheduleInfo, BookingSecret), Request);
+    match({ h(Request) }sk(Patient), SigPatient);
+
+    claim_E5HORunning(HO, Running, Patient, (ATI, ScheduleInfo, PAI));
+
+    send_2(HO, Patient, { (Ok, ATI, Ack) }k(Patient, HO));
+
+    claim_E5HOSync(HO, Nisynch);
+  }
+}
+
