@@ -1,0 +1,171 @@
+maude tool: 'maude'
+ checking version: WARNING:
+
+ 'maude --version' returned unsupported version '2.7'
+ Please install one of the following versions of Maude: 2.7.1, 3.0, 3.1, 3.2.1, 3.2.2, 3.3, 3.3.1, 3.4, 3.5
+
+Detailed results from testing 'maude'
+ command: maude --version
+ stdin:   
+ stdout:  2.7
+
+ stderr:  
+ checking installation: OK.
+[Theory HIDM_E6_privacy_1] Theory loaded
+[Theory HIDM_E6_privacy_1] Theory translated
+[Theory HIDM_E6_privacy_1] Derivation checks started
+[Theory HIDM_E6_privacy_1] Derivation checks ended
+[Theory HIDM_E6_privacy_1] Theory closed
+[Saturating Sources] Step 1 (Max 5)
+[Saturating Sources] Done
+theory HIDM_E6_privacy_1 begin
+
+// Function signature and definition of the equational theory E
+
+functions: PAI/3, fst/1, h/1, ho/0, link/2, pair/2, snd/1, token/1
+equations: fst(<x.1, x.2>) = x.1, snd(<x.1, x.2>) = x.2
+
+
+
+
+
+
+
+rule (modulo E) InitHO:
+   [ ] --> [ Out( ho ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) CreatePatient:
+   [ Fr( ~pid ), Fr( ~pii ) ] --> [ !MapAPI( ~pid, ~pii ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) PTA_Mint_Pseudonym:
+   [ !MapAPI( PID, PII ), Fr( ~ps ) ] --> [ !MapPTA( ~ps, PID ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Present_Proof_At_HO:
+   [ !MapPTA( P, PID ), !MapAPI( PID, PII ), Fr( ~t ), Fr( ~rk ), Fr( ~ct )
+   ]
+  --[ VerifyEv( P, ho, token(~t) ) ]->
+   [ !SeenV( P ), Out( PAI(P, ~rk, ~ct) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Audit_Expose_Link_E6:
+   [ !SeenV( P ), !MapPTA( P, PID ), !MapAPI( PID, PII ) ]
+  --[ Audit( ), LinkCreated( PII, P ) ]->
+   [ Out( link(PII, P) ) ]
+
+  /* has exactly the trivial AC variant */
+
+lemma no_link_without_audit_E6:
+  all-traces
+  "âˆ€ P T #i.
+    ((VerifyEv( P, ho, T ) @ #i) âˆ§ (Â¬(âˆƒ #j. Audit( ) @ #j))) â‡’
+    (Â¬(âˆƒ PII #k. K( link(PII, P) ) @ #k))"
+/*
+guarded formula characterizing all counter-examples:
+"âˆƒ P T #i.
+  (VerifyEv( P, ho, T ) @ #i)
+ âˆ§
+  (âˆ€ #j. (Audit( ) @ #j) â‡’ âŠ¥) âˆ§ (âˆƒ PII #k. (K( link(PII, P) ) @ #k))"
+*/
+by sorry
+
+lemma no_multi_verify_links_without_audit_E6:
+  all-traces
+  "âˆ€ P1 P2 T1 T2 #i #j.
+    (((VerifyEv( P1, ho, T1 ) @ #i) âˆ§ (VerifyEv( P2, ho, T2 ) @ #j)) âˆ§
+     (Â¬(âˆƒ #t. Audit( ) @ #t))) â‡’
+    (Â¬(âˆƒ PII1 PII2 #k1 #k2.
+        (K( link(PII1, P1) ) @ #k1) âˆ§ (K( link(PII2, P2) ) @ #k2)))"
+/*
+guarded formula characterizing all counter-examples:
+"âˆƒ P1 P2 T1 T2 #i #j.
+  (VerifyEv( P1, ho, T1 ) @ #i) âˆ§ (VerifyEv( P2, ho, T2 ) @ #j)
+ âˆ§
+  (âˆ€ #t. (Audit( ) @ #t) â‡’ âŠ¥) âˆ§
+  (âˆƒ PII1 PII2 #k1 #k2.
+    (K( link(PII1, P1) ) @ #k1) âˆ§ (K( link(PII2, P2) ) @ #k2))"
+*/
+simplify
+solve( !MapPTA( P1, PID ) â–¶â‚€ #i )
+  case PTA_Mint_Pseudonym
+  solve( !MapAPI( ~pid, PII ) â–¶â‚ #i )
+    case CreatePatient
+    solve( !MapPTA( P2, PID ) â–¶â‚€ #j )
+      case PTA_Mint_Pseudonym
+      solve( !MapAPI( ~pid.1, PII ) â–¶â‚ #j )
+        case CreatePatient
+        solve( !KU( link(PII1, ~ps) ) @ #vk )
+          case Audit_Expose_Link_E6
+          by contradiction /* from formulas */
+        next
+          case c_link
+          by solve( !KU( ~ps ) @ #vk.3 )
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma traceability_under_audit_possible_E6:
+  exists-trace
+  "âˆƒ P PII T #i #j #k.
+    (((VerifyEv( P, ho, T ) @ #i) âˆ§ (Audit( ) @ #j)) âˆ§
+     (LinkCreated( PII, P ) @ #j)) âˆ§
+    (K( link(PII, P) ) @ #k)"
+/*
+guarded formula characterizing all satisfying traces:
+"âˆƒ P PII T #i #j #k.
+  (VerifyEv( P, ho, T ) @ #i) âˆ§
+  (Audit( ) @ #j) âˆ§
+  (LinkCreated( PII, P ) @ #j) âˆ§
+  (K( link(PII, P) ) @ #k)"
+*/
+by sorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* All wellformedness checks were successful. */
+
+/*
+Generated from:
+Tamarin version 1.11.0
+Maude version 2.7 (unsupported)
+Git revision: 32705dd3717361574fc8dada786d4930a3b7ad29 (with uncommited changes), branch: develop
+Compiled at: 2025-10-25 23:26:01.972467575 UTC
+*/
+
+end
+
+==============================================================================
+summary of summaries:
+
+analyzed: HIDM_E6_privacy_1.spthy
+
+  processing time: 0.65s
+  
+  no_link_without_audit_E6 (all-traces): analysis incomplete (1 steps)
+  no_multi_verify_links_without_audit_E6 (all-traces): verified (8 steps)
+  traceability_under_audit_possible_E6 (exists-trace): analysis incomplete (1 steps)
+
+==============================================================================
+
