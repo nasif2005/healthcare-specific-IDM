@@ -1,0 +1,62 @@
+hashfunction h;
+const Ok, PTA;
+
+/*
+ * E6: In-person identity verification.
+ * The PTA-issued pseudonym token is modeled as a trusted pre-existing input.
+ * The patient signing key abstracts the pseudonym-specific patient key.
+ */
+protocol HIDMInPersonVerification(Patient, HO)
+{
+  role HO
+  {
+    fresh Challenge;
+
+    send_1(HO, Patient, { Challenge }k(Patient, HO));
+
+    var PT, PTExp, ATI, ConfirmationCode, BioHash;
+    var VerificationSecret, Response, SigPatient;
+    fresh Ack;
+
+    recv_2(Patient, HO, { (Response, SigPatient) }k(Patient, HO));
+
+    match((PT, PTExp, { (PT, PTExp) }sk(PTA), ATI,
+           ConfirmationCode, BioHash, VerificationSecret), Response);
+    match({ h((Response, Challenge)) }sk(Patient), SigPatient);
+
+    claim_E6HORunning(HO, Running, Patient, (ATI, ConfirmationCode));
+
+    send_3(HO, Patient, { (Ok, ATI, Ack) }k(Patient, HO));
+
+    claim_E6HOSync(HO, Nisynch);
+  }
+
+  role Patient
+  {
+    var PT, PTExp, Challenge;
+    fresh ATI, ConfirmationCode, BioHash, VerificationSecret;
+    var Ack;
+
+    recv_!0(PTA, Patient,
+      { (PT, PTExp, { (PT, PTExp) }sk(PTA)) }k(PTA, Patient)
+    );
+
+    recv_1(HO, Patient, { Challenge }k(Patient, HO));
+
+    send_2(Patient, HO,
+      { ( (PT, PTExp, { (PT, PTExp) }sk(PTA), ATI,
+           ConfirmationCode, BioHash, VerificationSecret),
+          { h(((PT, PTExp, { (PT, PTExp) }sk(PTA), ATI,
+               ConfirmationCode, BioHash, VerificationSecret),
+              Challenge)) }sk(Patient)
+        ) }k(Patient, HO)
+    );
+
+    recv_3(HO, Patient, { (Ok, ATI, Ack) }k(Patient, HO));
+
+    claim_E6Secret(Patient, Secret, VerificationSecret);
+    claim_E6PatientSync(Patient, Nisynch);
+    claim_E6PatientCommit(Patient, Commit, HO, (ATI, ConfirmationCode));
+  }
+}
+
