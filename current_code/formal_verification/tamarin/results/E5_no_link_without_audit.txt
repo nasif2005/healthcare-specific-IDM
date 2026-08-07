@@ -1,0 +1,164 @@
+maude tool: 'maude'
+ checking version: WARNING:
+
+ 'maude --version' returned unsupported version '2.7'
+ Please install one of the following versions of Maude: 2.7.1, 3.0, 3.1, 3.2.1, 3.2.2, 3.3, 3.3.1, 3.4, 3.5
+
+Detailed results from testing 'maude'
+ command: maude --version
+ stdin:   
+ stdout:  2.7
+
+ stderr:  
+ checking installation: OK.
+[Theory HIDM_E5_privacy] Theory loaded
+[Theory HIDM_E5_privacy] Theory translated
+[Theory HIDM_E5_privacy] Derivation checks started
+[Theory HIDM_E5_privacy] Derivation checks ended
+[Theory HIDM_E5_privacy] Theory closed
+[Saturating Sources] Step 1 (Max 5)
+[Saturating Sources] Done
+theory HIDM_E5_privacy begin
+
+// Function signature and definition of the equational theory E
+
+functions: PAI/3, fst/1, h/1, ho/0, link/2, pair/2, snd/1
+equations: fst(<x.1, x.2>) = x.1, snd(<x.1, x.2>) = x.2
+
+
+
+
+
+
+
+rule (modulo E) InitHO:
+   [ ] --> [ Out( ho ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) CreatePatient:
+   [ Fr( ~pid ), Fr( ~pii ) ] --> [ !MapAPI( ~pid, ~pii ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) PTA_Mint_Pseudonym:
+   [ !MapAPI( PID, PII ), Fr( ~ps ) ] --> [ !MapPTA( ~ps, PID ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Book_Appointment:
+   [
+   !MapPTA( P, PID ), !MapAPI( PID, PII ), Fr( ~ati ), Fr( ~rk ), Fr( ~ct )
+   ]
+  --[ BookEv( P, ho, ~ati ) ]->
+   [ !Seen( P ), Out( PAI(P, ~rk, ~ct) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Audit_Expose_Link:
+   [ !Seen( P ), !MapPTA( P, PID ), !MapAPI( PID, PII ) ]
+  --[ Audit( ), LinkCreated( PII, P ) ]->
+   [ Out( link(PII, P) ) ]
+
+  /* has exactly the trivial AC variant */
+
+lemma no_link_without_audit:
+  all-traces
+  "âˆ€ P Aux #i.
+    ((BookEv( P, ho, Aux ) @ #i) âˆ§ (Â¬(âˆƒ #j. Audit( ) @ #j))) â‡’
+    (Â¬(âˆƒ PII #k. K( link(PII, P) ) @ #k))"
+/*
+guarded formula characterizing all counter-examples:
+"âˆƒ P Aux #i.
+  (BookEv( P, ho, Aux ) @ #i)
+ âˆ§
+  (âˆ€ #j. (Audit( ) @ #j) â‡’ âŠ¥) âˆ§ (âˆƒ PII #k. (K( link(PII, P) ) @ #k))"
+*/
+simplify
+solve( !MapPTA( P, PID ) â–¶â‚€ #i )
+  case PTA_Mint_Pseudonym
+  solve( !MapAPI( ~pid, PII ) â–¶â‚ #i )
+    case CreatePatient
+    solve( !KU( link(PII, ~ps) ) @ #vk )
+      case Audit_Expose_Link
+      by contradiction /* from formulas */
+    next
+      case c_link
+      by solve( !KU( ~ps ) @ #vk.2 )
+    qed
+  qed
+qed
+
+lemma no_multi_booking_links_without_audit:
+  all-traces
+  "âˆ€ P1 P2 A1 A2 #i #j.
+    (((BookEv( P1, ho, A1 ) @ #i) âˆ§ (BookEv( P2, ho, A2 ) @ #j)) âˆ§
+     (Â¬(âˆƒ #t. Audit( ) @ #t))) â‡’
+    (Â¬(âˆƒ PII1 PII2 #k1 #k2.
+        (K( link(PII1, P1) ) @ #k1) âˆ§ (K( link(PII2, P2) ) @ #k2)))"
+/*
+guarded formula characterizing all counter-examples:
+"âˆƒ P1 P2 A1 A2 #i #j.
+  (BookEv( P1, ho, A1 ) @ #i) âˆ§ (BookEv( P2, ho, A2 ) @ #j)
+ âˆ§
+  (âˆ€ #t. (Audit( ) @ #t) â‡’ âŠ¥) âˆ§
+  (âˆƒ PII1 PII2 #k1 #k2.
+    (K( link(PII1, P1) ) @ #k1) âˆ§ (K( link(PII2, P2) ) @ #k2))"
+*/
+by sorry
+
+lemma traceability_under_audit_possible:
+  exists-trace
+  "âˆƒ P PII Aux #i #j #k.
+    (((BookEv( P, ho, Aux ) @ #i) âˆ§ (Audit( ) @ #j)) âˆ§
+     (LinkCreated( PII, P ) @ #j)) âˆ§
+    (K( link(PII, P) ) @ #k)"
+/*
+guarded formula characterizing all satisfying traces:
+"âˆƒ P PII Aux #i #j #k.
+  (BookEv( P, ho, Aux ) @ #i) âˆ§
+  (Audit( ) @ #j) âˆ§
+  (LinkCreated( PII, P ) @ #j) âˆ§
+  (K( link(PII, P) ) @ #k)"
+*/
+by sorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* All wellformedness checks were successful. */
+
+/*
+Generated from:
+Tamarin version 1.11.0
+Maude version 2.7 (unsupported)
+Git revision: 32705dd3717361574fc8dada786d4930a3b7ad29 (with uncommited changes), branch: develop
+Compiled at: 2025-10-25 23:26:01.972467575 UTC
+*/
+
+end
+
+==============================================================================
+summary of summaries:
+
+analyzed: HIDM_E5_privacy_1.spthy
+
+  processing time: 0.54s
+  
+  no_link_without_audit (all-traces): verified (6 steps)
+  no_multi_booking_links_without_audit (all-traces): analysis incomplete (1 steps)
+  traceability_under_audit_possible (exists-trace): analysis incomplete (1 steps)
+
+==============================================================================
+
